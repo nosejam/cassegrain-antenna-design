@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Design and visualize Cassegrain, Gregorian, and open-Cassegrain antennas, estimate gain patterns, and exchange polynomial reflector profiles."
+    />
+    <title>Cassegrain Lab — Antenna geometry workbench</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2316202b'/%3E%3Cpath d='M23 5Q3 16 23 27M12 16h15' stroke='%23ffab66' stroke-width='2.5' fill='none'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script defer src="open-cassegrain.js"></script>
+    <script defer src="geometry.js"></script>
+    <script defer src="antenna-model.js"></script>
+    <script defer src="polynomials.js"></script>
+    <script defer src="pattern.js"></script>
+    <script defer src="visualization.js"></script>
+    <script defer src="analysis-ui.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./index.html" aria-label="Cassegrain Lab home"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M24 4Q2 16 24 28M12 16h17M19 9Q24 16 19 23" /></svg
+        ><span>Cassegrain <strong>Lab</strong></span></a
+      >
+      <span class="top-description">DUAL-REFLECTOR DESIGN WORKBENCH</span>
+      <a class="reference-link" href="#equations"
+        >Equations &amp; reference <span aria-hidden="true">↗</span></a
+      >
+    </header>
+    <main>
+      <div class="intro">
+        <div>
+          <p class="eyebrow">GEOMETRY STUDIO</p>
+          <h1>Antenna design, in focus.</h1>
+          <p>Set the constraints. Explore the geometry.</p>
+        </div>
+        <div class="local-badge">
+          <span></span> Runs locally · no account needed
+        </div>
+      </div>
+      <div class="workspace">
+        <aside class="controls panel" aria-label="Design controls">
+          <div class="panel-heading">
+            <h2>Design inputs</h2>
+            <span class="step-tag">01</span>
+          </div>
+          <label for="preset">Starting example</label>
+          <select id="preset">
+            <option value="cassegrain">22-unit Cassegrain · Granet</option>
+            <option value="gregorian">10-unit Gregorian · Granet</option>
+            <option value="blockage">Minimum blockage · Granet</option>
+            <option value="phase">Recessed phase center · Granet</option>
+            <option value="open">100-unit open-Cassegrain</option>
+            <option value="open2">50-unit open-Cassegrain</option>
+            <option value="custom" disabled>Custom design</option>
+          </select>
+          <div class="split-fields">
+            <div>
+              <label for="antenna">Antenna type</label
+              ><select id="antenna">
+                <option value="-1">Cassegrain</option>
+                <option value="1">Gregorian</option>
+                <option value="open">Open-Cassegrain</option>
+                <option value="poly" disabled>Polynomial profiles</option>
+              </select>
+            </div>
+            <div>
+              <label for="unit">Length unit</label
+              ><select id="unit">
+                <option value="m">m</option>
+                <option value="cm">cm</option>
+                <option value="mm">mm</option>
+                <option value="in">in</option>
+              </select>
+            </div>
+          </div>
+          <label for="constraint">Design constraint</label>
+          <select id="constraint">
+            <option value="N">Free geometry</option>
+            <option value="B">Minimum blockage</option>
+            <option value="P">Blockage + phase-center recess</option>
+            <option value="O" disabled>Open-Cassegrain geometry</option>
+            <option value="poly" disabled>Imported profiles</option>
+          </select>
+          <label for="option">Known parameters</label
+          ><select id="option"></select>
+          <p id="mode-description" class="hint"></p>
+          <div class="divider"></div>
+          <form
+            id="parameters"
+            novalidate
+            aria-label="Geometry parameters"
+          ></form>
+          <div id="validation" role="status" aria-live="polite"></div>
+          <button id="reset" class="button subtle full" type="button">
+            ↺ &nbsp; Reset to starting example
+          </button>
+          <p class="controls-foot">
+            Angles are in degrees. Length units convert the current design.
+            Values update as you type.
+          </p>
+        </aside>
+        <div class="design-area">
+          <section class="viewer panel" aria-labelledby="geometry-title">
+            <div class="viewer-toolbar">
+              <div>
+                <p class="eyebrow">LIVE GEOMETRY</p>
+                <h2 id="geometry-title">Axial cross-section</h2>
+              </div>
+              <div
+                class="view-switch"
+                role="group"
+                aria-label="Visualization mode"
+              >
+                <button id="view-2d" aria-pressed="true">2D section</button
+                ><button id="view-3d" aria-pressed="false">3D model</button>
+              </div>
+            </div>
+            <div class="plot" id="plot">
+              <svg
+                id="section"
+                viewBox="0 0 900 560"
+                role="img"
+                aria-labelledby="plot-title plot-description"
+              >
+                <title id="plot-title">Antenna axial cross-section</title>
+                <desc id="plot-description">
+                  Calculated main parabola, secondary conic, feed and optical
+                  ray paths. Axial distance increases to the right.
+                </desc>
+              </svg>
+              <canvas
+                id="model"
+                hidden
+                tabindex="0"
+                role="img"
+                aria-label="Rotatable 3D antenna wireframe. Drag or use the arrow keys to rotate. Use plus and minus to zoom."
+              ></canvas>
+              <div class="plot-topline">
+                <span id="plot-label">CASSEGRAIN / AXIALLY SYMMETRIC</span
+                ><span id="plot-unit">m</span>
+              </div>
+              <div id="plot-error" hidden>
+                <strong>No valid geometry</strong
+                ><span>Adjust the design inputs to continue.</span>
+              </div>
+              <div class="plot-bottomline">
+                <span id="view-hint">Equal scale on both axes · z →</span>
+                <div class="plot-buttons">
+                  <button id="zoom-out" aria-label="Zoom out" title="Zoom out">
+                    −</button
+                  ><button id="zoom-in" aria-label="Zoom in" title="Zoom in">
+                    +</button
+                  ><button id="fit" title="Fit geometry to view">Fit</button>
+                </div>
+              </div>
+            </div>
+            <div class="viewer-footer">
+              <div class="legend">
+                <span><i class="main-key"></i>Main reflector</span
+                ><span><i class="sub-key"></i>Subreflector</span
+                ><span><i class="ray-key"></i>Ray paths</span>
+              </div>
+              <div class="toggles">
+                <label
+                  ><input id="show-rays" type="checkbox" checked /> Rays</label
+                ><label
+                  ><input id="show-dimensions" type="checkbox" checked />
+                  Dimensions</label
+                >
+              </div>
+            </div>
+          </section>
+          <section
+            class="metrics"
+            aria-label="Key design results"
+            aria-live="polite"
+          >
+            <div class="metric">
+              <span>Main focal ratio</span><strong id="metric-ratio">—</strong
+              ><small>f / D</small>
+            </div>
+            <div class="metric">
+              <span>Subreflector diameter</span
+              ><strong id="metric-diameter">—</strong
+              ><small id="metric-diameter-note">—</small>
+            </div>
+            <div class="metric">
+              <span>Magnification</span
+              ><strong id="metric-magnification">—</strong
+              ><small>Paraxial equivalent</small>
+            </div>
+            <div class="metric">
+              <span>Projected blockage</span
+              ><strong id="metric-blockage">—</strong
+              ><small>Subreflector area only</small>
+            </div>
+          </section>
+          <section class="results panel" aria-labelledby="results-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">CALCULATED GEOMETRY</p>
+                <h2 id="results-title">Design dimensions</h2>
+              </div>
+              <code id="routine">DRGEON2</code>
+            </div>
+            <div id="results-grid" class="results-grid"></div>
+            <div class="export-bar">
+              <span>Take your design further</span>
+              <div>
+                <button id="export-json" class="button" type="button">
+                  Save design ↓</button
+                ><button id="import-json" class="button" type="button">
+                  Open design ↑</button
+                ><button id="export-csv" class="button" type="button">
+                  Profile CSV ↓</button
+                ><button id="export-svg" class="button" type="button">
+                  Section SVG ↓
+                </button>
+              </div>
+            </div>
+            <input
+              id="import-file"
+              type="file"
+              accept=".json,application/json"
+              hidden
+            />
+            <p id="file-status" class="file-status" role="status"></p>
+          </section>
+          <section class="analysis panel" aria-labelledby="pattern-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">FREQUENCY &amp; RADIATION</p>
+                <h2 id="pattern-title">Estimated gain pattern</h2>
+              </div>
+              <span class="model-tag">Scalar aperture model</span>
+            </div>
+            <div class="analysis-controls">
+              <label
+                >Frequency (GHz)<input
+                  id="frequency"
+                  type="number"
+                  value="10"
+                  min="0.000001"
+                  max="10000"
+                  step="any"
+              /></label>
+              <label
+                >Aperture edge taper (dB)<input
+                  id="edge-taper"
+                  type="number"
+                  value="-10"
+                  min="-60"
+                  max="0"
+                  step="1"
+              /></label>
+              <label
+                >Other efficiency (%)<input
+                  id="rf-efficiency"
+                  type="number"
+                  value="70"
+                  min="0.01"
+                  max="100"
+                  step="1"
+              /></label>
+              <label
+                >Plot span<select id="pattern-span">
+                  <option value="3">±3 λ/D</option>
+                  <option value="6" selected>±6 λ/D</option>
+                  <option value="12">±12 λ/D</option>
+                </select></label
+              >
+              <label
+                >Vertical scale<select id="pattern-scale">
+                  <option value="gain">Gain (dBi)</option>
+                  <option value="relative">Relative to peak (dB)</option>
+                </select></label
+              >
+            </div>
+            <div class="pattern-results" aria-live="polite">
+              <div>
+                <span>Estimated peak gain</span
+                ><strong id="peak-gain">—</strong>
+              </div>
+              <div>
+                <span>Half-power beamwidth</span
+                ><strong id="beamwidth">—</strong>
+              </div>
+              <div>
+                <span>Wavelength</span><strong id="wavelength">—</strong>
+              </div>
+              <div>
+                <span>Total modeled efficiency</span
+                ><strong id="total-efficiency">—</strong>
+              </div>
+            </div>
+            <svg
+              id="pattern-chart"
+              viewBox="0 0 900 340"
+              role="img"
+              aria-label="Estimated gain versus off-axis angle"
+            ></svg>
+            <p id="pattern-status" class="hint" role="status"></p>
+            <p class="analysis-note">
+              Assumes a circular aperture, flat phase, and Gaussian aperture
+              illumination (0 dB taper = uniform). “Other efficiency” accounts
+              for losses beyond the modeled taper and obstruction.
+              Open-Cassegrain uses a clear aperture; symmetric designs use a
+              central obstruction of diameter DS. This is an aperture estimate,
+              not a full-wave simulation or a feed-pattern calculation.
+            </p>
+            <p id="polynomial-pattern-note" class="analysis-note" hidden>
+              For imported polynomials, the pattern uses the aperture diameter
+              and specified obstruction only. It does not infer aperture phase,
+              defocus, illumination, or optical quality from arbitrary profile
+              shapes.
+            </p>
+            <div class="export-bar">
+              <a
+                href="https://www.cv.nrao.edu/~sransom/web/Ch3.html"
+                target="_blank"
+                rel="noreferrer"
+                >Model reference: NRAO aperture patterns ↗</a
+              ><button id="export-pattern" class="button">Pattern CSV ↓</button>
+            </div>
+          </section>
+          <section class="analysis panel" aria-labelledby="polynomial-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">PROFILE FUNCTIONS</p>
+                <h2 id="polynomial-title">Polynomial interchange</h2>
+              </div>
+              <label class="degree-label"
+                >Fit degree
+                <select id="poly-degree">
+                  <option>2</option>
+                  <option>4</option>
+                  <option>6</option>
+                  <option selected>8</option>
+                  <option>10</option>
+                  <option>12</option>
+                </select></label
+              >
+            </div>
+            <p class="analysis-note">
+              Export both surfaces as z<sub>local</sub>(u) = a₀ + a₁u + a₂u² +
+              …, with u = (r − rOrigin) / rScale. Files include units, radial
+              domains, aperture offsets, axis rotations, and feed location.
+              Conic secondary fits are approximations; error below is measured
+              over each exported domain.
+            </p>
+            <pre
+              id="polynomial-summary"
+              class="polynomial-summary"
+              tabindex="0"
+            ></pre>
+            <div class="export-bar">
+              <span id="poly-fit-status"></span>
+              <div>
+                <button id="export-polynomial" class="button">
+                  Polynomial JSON ↓</button
+                ><button id="export-functions" class="button">
+                  Functions TXT ↓
+                </button>
+              </div>
+            </div>
+            <details id="polynomial-editor">
+              <summary>Import or edit polynomial functions</summary>
+              <p class="analysis-note">
+                Load the current profiles as a starting point, then edit the
+                JSON. Each surface accepts either
+                <code>coefficients: [a₀, a₁, …]</code> or
+                <code>expression: "6.54 + 0.22*u^2"</code>. Use
+                <code>u = (r − rOrigin)/rScale</code>; set rOrigin = 0 and
+                rScale = 1 to use the physical radius directly. Use explicit
+                multiplication. No code is executed.
+              </p>
+              <p class="analysis-note">
+                Import preserves arbitrary polynomial profiles rather than
+                forcing them into a conic. The main axis must face +z. Optical
+                validity is not established by import; ideal conic rays and
+                conic-only quantities are unavailable.
+              </p>
+              <button id="edit-current-polynomial" class="button">
+                Load current profiles into editor
+              </button>
+              <label class="editor-label" for="polynomial-json"
+                >Polynomial design JSON</label
+              ><textarea
+                id="polynomial-json"
+                rows="15"
+                spellcheck="false"
+                placeholder="Paste a polynomial design JSON file here."
+              ></textarea>
+              <div class="export-bar">
+                <button id="apply-polynomial" class="button">
+                  Apply polynomial design</button
+                ><button id="open-polynomial" class="button">
+                  Open polynomial JSON ↑
+                </button>
+              </div>
+              <input
+                id="polynomial-file"
+                type="file"
+                accept=".json,application/json"
+                hidden
+              />
+              <p id="poly-import-status" class="file-status" role="status"></p>
+            </details>
+          </section>
+        </div>
+      </div>
+      <section class="reference panel" id="equations">
+        <div>
+          <p class="eyebrow">BEHIND THE DESIGN</p>
+          <h2>Equations with a traceable source.</h2>
+          <p>
+            Translated from <a href="GRANET.FOR">GRANET.FOR</a> and
+            <a href="GRANEOC.FOR">GRANEOC.FOR</a>: Christophe Granet’s
+            dual-reflector equations, implemented in Fortran by T. A. Milligan.
+            Includes 21 symmetric routines and all five open-Cassegrain input
+            combinations.
+          </p>
+          <p class="hint">
+            Other classical offset, Dragonian, displaced-axis, and Schwarzschild
+            source families remain unported. Gain analysis is a separate scalar
+            aperture approximation; the Fortran programs supply geometry only.
+          </p>
+        </div>
+        <div>
+          <details>
+            <summary>Coordinates &amp; surface equations</summary>
+            <p>
+              The parent main vertex is at z = 0; the beam points along +z. In
+              symmetric designs, the feed is at z = LM and main focus at z = FM.
+            </p>
+            <div class="formula">
+              Main: z = r² / (4 FM)<br />Symmetric secondary: z = LM + c + a √(1
+              − σ r² / b²)<br />b² = σ(a² − c²), &nbsp; c = FS<br />σ = −1
+              Cassegrain, +1 Gregorian
+            </div>
+            <p>
+              In open-Cassegrain, the main aperture is offset by H. The
+              secondary uses a local axis rotated by 180° − THO about the main
+              focus, and zLocal = c − a√(1 + r²/(c² − a²)). The feed is 2c along
+              that axis. Imported polynomials retain their own local placement.
+            </p>
+          </details>
+          <details>
+            <summary>Open-Cassegrain source correction</summary>
+            <p>
+              GRANEOC.FOR reports ASR using a cosine denominator. That value
+              equals (c/e) tan(TE), contradicting its reported half focal
+              separation c and eccentricity e. This app retains ASR as “legacy
+              ASR” but draws and exports the consistent hyperbola with a = c/e.
+              Surface normals, edge-ray mapping, and equal optical paths are
+              independently checked.
+            </p>
+            <p>
+              Bracketed double-precision solving replaces the source’s coarse
+              root search. Input combinations follow the same geometric
+              equations, so values may differ from the legacy output’s finite
+              root tolerance.
+            </p>
+          </details>
+          <details>
+            <summary>Optical and gain-model limits</summary>
+            <p>
+              Geometry rays are ideal constructions, with no supports, hardware
+              intersections, or polarization. Imported polynomial shapes are
+              displayed without claiming that they collimate. The pattern panel
+              uses a specified Gaussian, flat-phase circular aperture and
+              optional central obstruction; it does not solve arbitrary profiles
+              for their electromagnetic field.
+            </p>
+            <p>
+              Only forward main-beam/sidelobe estimates are shown (up to ±30°),
+              for apertures at least 10 wavelengths across. Efficiency is an
+              assumption, not a measured quantity. There is no cross-polar,
+              rear-lobe, near-field, feed-pattern, surface-tolerance, or
+              full-wave analysis.
+            </p>
+          </details>
+        </div>
+      </section>
+      <footer>
+        CASSEGRAIN LAB
+        <span>Geometry first. Built from the original equations.</span>
+      </footer>
+    </main>
+    <noscript
+      >This application requires JavaScript to calculate and draw antenna
+      geometry.</noscript
+    >
+  </body>
+</html>
+
